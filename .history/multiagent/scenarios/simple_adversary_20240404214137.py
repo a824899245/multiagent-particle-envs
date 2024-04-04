@@ -2,7 +2,7 @@ import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 
-# Scenario for 3 agents and 2 landmarks
+
 class Scenario(BaseScenario):
 
     def make_world(self):
