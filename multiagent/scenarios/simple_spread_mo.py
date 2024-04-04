@@ -13,7 +13,7 @@ class Scenario(BaseScenario):
         world.dim_r = rdim
         num_agents = 3
         num_landmarks = 3
-        world.collaborative = True
+        world.collaborative = False
 
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
@@ -44,7 +44,6 @@ class Scenario(BaseScenario):
             agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
-            agent.power = 0
             w_batch = np.random.randn(1, world.dim_r)
             w_batch = np.abs(w_batch) /  np.linalg.norm(w_batch, ord=1, axis=1, keepdims=True)[0]
             agent.preference = w_batch[0]
@@ -80,32 +79,13 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0
-        for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            rew -= min(dists)
+        rew -= min([np.sqrt(np.sum(np.square(l.state.p_pos - agent.state.p_pos))) for l in world.landmarks])
         if agent.collide:
             for a in world.agents:
                 if self.is_collision(a, agent):
                     rew -= 1
         # print([rew, -agent.power])
         return  [rew/10, -agent.power/2]
-
-    def TRTU_reward(self, agent, world):
-        # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew1 = 0
-        rew2 = 0
-        for l in world.landmarks:
-            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-            rew1 -= min(dists)
-        powers = np.array([a.power for a in world.agents])
-        rew2 = -np.sum(powers)
-        if agent.collide:
-            for a in world.agents:
-                if self.is_collision(a, agent):
-                    rew1 -= 1
-                    rew2 -= 1
-        # print([rew, -agent.power])
-        return  [rew1, rew2]
 
     def observation(self, agent, world):
         # get positions of all entities in this agent's reference frame

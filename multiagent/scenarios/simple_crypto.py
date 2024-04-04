@@ -51,6 +51,7 @@ class Scenario(BaseScenario):
             if agent.adversary:
                 agent.color = np.array([0.75, 0.25, 0.25])
             agent.key = None
+            agent.power = 0
         # random properties for landmarks
         color_list = [np.zeros(world.dim_c) for i in world.landmarks]
         for i, color in enumerate(color_list):
@@ -70,6 +71,9 @@ class Scenario(BaseScenario):
             agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+            w_batch = np.random.randn(1, world.dim_r)
+            w_batch = np.abs(w_batch) /  np.linalg.norm(w_batch, ord=1, axis=1, keepdims=True)[0]
+            agent.preference = w_batch[0]
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
@@ -92,8 +96,15 @@ class Scenario(BaseScenario):
         return [agent for agent in world.agents if agent.adversary]
 
     def reward(self, agent, world):
-        return self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
-
+        main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
+        return [main_reward, -agent.power/2]
+    
+    def TRIU_reward(self, agent, world):
+        # Agents are rewarded based on minimum agent distance to each landmark
+        main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
+        power_reward = -np.array([a.power for a in self.adversaries(world)]).sum() if agent.adversary else -np.array([a.power for a in self.good_agents(world)]).sum()
+        return [main_reward, power_reward]     
+       
     def agent_reward(self, agent, world):
         # Agents rewarded if Bob can reconstruct message, but adversary (Eve) cannot
         good_listeners = self.good_listeners(world)
@@ -167,3 +178,6 @@ class Scenario(BaseScenario):
                 print(agent.state.c)
                 print(np.concatenate(comm + [confer]))
             return np.concatenate(comm)
+    
+    def preference(self, agent):
+        return agent.preference

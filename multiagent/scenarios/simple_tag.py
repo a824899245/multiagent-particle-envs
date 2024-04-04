@@ -48,6 +48,10 @@ class Scenario(BaseScenario):
             agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+            agent.power = 0
+            w_batch = np.random.randn(1, world.dim_r)
+            w_batch = np.abs(w_batch) /  np.linalg.norm(w_batch, ord=1, axis=1, keepdims=True)[0]
+            agent.preference = w_batch[0]
         for i, landmark in enumerate(world.landmarks):
             if not landmark.boundary:
                 landmark.state.p_pos = np.random.uniform(-0.9, +0.9, world.dim_p)
@@ -84,7 +88,13 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark
         main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
-        return main_reward
+        return [main_reward, -agent.power/2]
+    
+    def TRIU_reward(self, agent, world):
+        # Agents are rewarded based on minimum agent distance to each landmark
+        main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
+        power_reward = -np.array([a.power for a in self.adversaries(world)]).sum() if agent.adversary else -np.array([a.power for a in self.good_agents(world)]).sum()
+        return [main_reward, power_reward]    
 
     def agent_reward(self, agent, world):
         # Agents are negatively rewarded if caught by adversaries
@@ -145,3 +155,6 @@ class Scenario(BaseScenario):
             if not other.adversary:
                 other_vel.append(other.state.p_vel)
         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+    
+    def preference(self, agent):
+        return agent.preference

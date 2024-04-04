@@ -51,13 +51,24 @@ class Scenario(BaseScenario):
             agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+            agent.power = 0
+            w_batch = np.random.randn(1, world.dim_r)
+            w_batch = np.abs(w_batch) /  np.linalg.norm(w_batch, ord=1, axis=1, keepdims=True)[0]
+            agent.preference = w_batch[0]
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
 
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark
-        return self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
+        main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
+        return [main_reward, -agent.power/2]
+
+    def IRIU_reward(self, agent, world):
+        # Agents are rewarded based on minimum agent distance to each landmark
+        main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
+        return [main_reward, -agent.power]
+
 
     def agent_reward(self, agent, world):
         # the distance to the goal
@@ -94,3 +105,6 @@ class Scenario(BaseScenario):
         else:
             #other_pos = list(reversed(other_pos)) if random.uniform(0,1) > 0.5 else other_pos  # randomize position of other agents in adversary network
             return np.concatenate([agent.state.p_vel] + entity_pos + other_pos)
+    
+    def preference(self, agent):
+        return agent.preference

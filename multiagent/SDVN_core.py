@@ -1,12 +1,16 @@
 import numpy as np
 
+from Get_Move import get_position
+from Init import init_controller, init_node
+
 # physical/external base state of all entites
 class EntityState(object):
     def __init__(self):
+        self.id = None
         # physical position
-        self.p_pos = None
+        self.pos = None
         # physical velocity
-        self.p_vel = None
+        self.v_max = None
 
 # state of agents (including communication and internal/mental state)
 class AgentState(EntityState):
@@ -19,9 +23,11 @@ class AgentState(EntityState):
 class Action(object):
     def __init__(self):
         # physical action
-        self.u = None
-        # communication action
-        self.c = None
+        self.association = None
+        self.beamforming = None
+        self.powersplit = None
+        self.movement = None
+
 
 # properties and state of physical world entity
 class Entity(object):
@@ -29,18 +35,9 @@ class Entity(object):
         # name 
         self.name = ''
         # properties:
-        self.size = 0.050
-        # entity can move / be pushed
-        self.movable = False
-        # entity collides with others
-        self.collide = True
-        # material density (affects mass)
-        self.density = 25.0
-        # color
-        self.color = None
+
         # max speed and accel
         self.max_speed = None
-        self.accel = None
         # state
         self.state = EntityState()
         # mass
@@ -54,32 +51,37 @@ class Entity(object):
 class Landmark(Entity):
      def __init__(self):
         super(Landmark, self).__init__()
+        self.AoI = []
+        self.throughput = []
+        self.AoI_th = None
+        self.SINR_th = None
+        self.p_mov = None
+        self.p_IRS = None
+
 
 # properties of agent entities
 class Agent(Entity):
     def __init__(self):
         super(Agent, self).__init__()
-        # agents are movable by default
-        self.movable = True
-        # cannot send communication signals
-        self.silent = False
-        # cannot observe the world
-        self.blind = False
+        # maximum transmission power
+        self.p_max = None
+        # movement power
+        self.p_mov = None
+        # energy_consumprion
+        self.ec = []        
+
         # physical motor noise amount
         self.u_noise = None
         # communication noise amount
         self.c_noise = None
         # control range
-        self.u_range = 1.0
+        self.com_range = 1.0
         # state
         self.state = AgentState()
         # action
         self.action = Action()
         # script behavior to execute
         self.action_callback = None
-        self.force = None
-        self.power = 0
-        self.preference = None
 
 # multi-agent world
 class World(object):
@@ -87,21 +89,39 @@ class World(object):
         # list of agents and entities (can change at execution-time!)
         self.agents = []
         self.landmarks = []
-        # communication channel dimensionality
-        self.dim_c = 0
         # position dimensionality
-        self.dim_p = 2
-        # reward dimensionality
-        self.dim_r = 2
-        # color dimensionality
-        self.dim_color = 3
+        self.dim_p = 3
         # simulation timestep
-        self.dt = 0.1
-        # physical damping
-        self.damping = 0.25
-        # contact response parameters
-        self.contact_force = 1e+2
-        self.contact_margin = 1e-3
+        self.dt = None
+        # simulation start time
+        self.start_time = None
+        # simulation slot
+        self.slot = None
+
+
+        self.reward_dim = None
+
+        self.vehicle_num = None
+        self.control_num = None
+        self.channel_num = None
+        self.movement_matrix = None
+        self.init_position_matrix = None
+        self.node_position = None
+        self.next_node_position = None
+        self.node_id_position = None
+
+        
+        self.terminal = None
+        # state space specification: 2-dimensional discrete box
+        self.state_n = None
+
+        # action space specification: 0 left, 1 right
+        self.action_n = None
+
+        # reward specification: 2-dimensional reward
+        # 1st: treasure value || 2nd: time penalty
+        self.reward_n = None
+
 
     # return all entities in the world
     @property
@@ -120,20 +140,32 @@ class World(object):
 
     # update state of the world
     def step(self):
-        # set actions for scripted agents 
-        for agent in self.scripted_agents:
-            agent.action = agent.action_callback(agent, self)
-        # gather forces applied to entities
-        p_force = [None] * len(self.entities)
-        # apply agent physical controls
-        p_force = self.apply_action_force(p_force)
-        # apply environment forces
-        p_force = self.apply_environment_force(p_force)
-        # integrate physical state
-        self.integrate_state(p_force)
-        # update agent state
-        for agent in self.agents:
-            self.update_agent_state(agent)
+        # UxV position change
+
+
+        # Controller position change
+
+
+        # Controller association change
+
+
+        # Controller beamforming change
+
+
+        # Controller powersplit change 
+
+        
+        # SINR calculation
+
+
+        # Energy calculation
+
+
+        # Constriant check
+
+
+        # AoI, energy, and throughput update
+        a = 1
 
     # gather agent action forces
     def apply_action_force(self, p_force):
@@ -141,8 +173,7 @@ class World(object):
         for i,agent in enumerate(self.agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
-                p_force[i] = agent.action.u + noise
-                agent.force = p_force[i]                
+                p_force[i] = agent.action.u + noise                
         return p_force
 
     # gather physical forces acting on entities
@@ -173,19 +204,14 @@ class World(object):
                     entity.state.p_vel = entity.state.p_vel / np.sqrt(np.square(entity.state.p_vel[0]) +
                                                                   np.square(entity.state.p_vel[1])) * entity.max_speed
             entity.state.p_pos += entity.state.p_vel * self.dt
-            entity.power = entity.force.dot(entity.state.p_vel)
-           
-           
-           
 
     def update_agent_state(self, agent):
         # set communication state (directly for now)
         if agent.silent:
             agent.state.c = np.zeros(self.dim_c)
         else:
-            noise = np.random.randn(* agent.action.c.shape) * agent.c_noise if agent.c_noise else 0.0
-            agent.state.c = agent.action.c + noise
-            agent.power += np.sqrt(np.sum(agent.state.c**2)) 
+            noise = np.random.randn(*agent.action.c.shape) * agent.c_noise if agent.c_noise else 0.0
+            agent.state.c = agent.action.c + noise      
 
     # get collision forces for any contact between two entities
     def get_collision_force(self, entity_a, entity_b):

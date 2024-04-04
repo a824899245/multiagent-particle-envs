@@ -48,6 +48,10 @@ class Scenario(BaseScenario):
             agent.state.p_pos = np.random.uniform(-1,+1, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
+            agent.power = 0
+            w_batch = np.random.randn(1, world.dim_r)
+            w_batch = np.abs(w_batch) /  np.linalg.norm(w_batch, ord=1, axis=1, keepdims=True)[0]
+            agent.preference = w_batch[0]
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.random.uniform(-1,+1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
@@ -56,7 +60,16 @@ class Scenario(BaseScenario):
         if agent.goal_a is None or agent.goal_b is None:
             return 0.0
         dist2 = np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos))
-        return -dist2
+        return [-dist2/10, -agent.power/2]
+
+    def TRTU_reward(self, agent, world):
+        if agent.goal_a is None or agent.goal_b is None:
+            return 0.0
+        dist2 = np.sum(np.square(agent.goal_a.state.p_pos - agent.goal_b.state.p_pos))
+        powers = np.array([a.power for a in world.agents])
+        rew2 = -np.sum(powers)
+        return [-dist2, rew2]
+
 
     def observation(self, agent, world):
         # goal color
@@ -78,4 +91,6 @@ class Scenario(BaseScenario):
             if other is agent: continue
             comm.append(other.state.c)
         return np.concatenate([agent.state.p_vel] + entity_pos + [goal_color[1]] + comm)
-            
+    
+    def preference(self, agent):
+        return agent.preference

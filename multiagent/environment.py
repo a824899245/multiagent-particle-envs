@@ -12,19 +12,20 @@ class MultiAgentEnv(gym.Env):
     }
 
     def __init__(self, world, reset_callback=None, reward_callback=None,
-                 observation_callback=None, info_callback=None,
+                 observation_callback=None, preference_callback=None, info_callback=None,
                  done_callback=None, shared_viewer=True):
 
         self.world = world
-        self.agents = self.world.policy_agents
+        self.agents = self.world.agents
         # set required vectorized gym env property
-        self.n = len(world.policy_agents)
+        self.n = len(world.agents)
         # scenario callbacks
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
         self.observation_callback = observation_callback
         self.info_callback = info_callback
         self.done_callback = done_callback
+        self.preference_callback = preference_callback
         # environment parameters
         self.discrete_action_space = True
         # if true, action is a number 0...N, otherwise action is a one-hot N-dimensional vector
@@ -93,15 +94,20 @@ class MultiAgentEnv(gym.Env):
             obs_n.append(self._get_obs(agent))
             reward_n.append(self._get_reward(agent))
             done_n.append(self._get_done(agent))
-
             info_n['n'].append(self._get_info(agent))
 
         # all agents get total reward in cooperative case
-        reward = np.sum(reward_n)
+        reward = np.sum(np.array(reward_n)[:,0])
+
+        reward2 = np.array(reward_n)[:,1]
         if self.shared_reward:
             reward_n = [reward] * self.n
+        else:
+            reward_n = np.array(reward_n)[:,0]
+        
+        mreward_n = np.array([reward_n, reward2]).transpose()
 
-        return obs_n, reward_n, done_n, info_n
+        return obs_n, mreward_n, done_n, info_n
 
     def reset(self):
         # reset world
@@ -110,10 +116,12 @@ class MultiAgentEnv(gym.Env):
         self._reset_render()
         # record observations for each agent
         obs_n = []
+        pre_n = []
         self.agents = self.world.policy_agents
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))
-        return obs_n
+            pre_n.append(self._get_preference(agent))
+        return obs_n, pre_n
 
     # get info used for benchmarking
     def _get_info(self, agent):
@@ -140,8 +148,14 @@ class MultiAgentEnv(gym.Env):
             return 0.0
         return self.reward_callback(agent, self.world)
 
+    def _get_preference(self, agent):
+        if self.preference_callback is None:
+            return np.zeros(self.world.dim_r)
+        return self.preference_callback(agent)
+    
     # set env action for a particular agent
     def _set_action(self, action, agent, action_space, time=None):
+        action = action.squeeze()
         agent.action.u = np.zeros(self.world.dim_p)
         agent.action.c = np.zeros(self.world.dim_c)
         # process action
