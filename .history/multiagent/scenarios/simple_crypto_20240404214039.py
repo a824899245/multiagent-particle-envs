@@ -9,7 +9,8 @@ import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 import random
-#  test 105
+
+
 class CryptoAgent(Agent):
     def __init__(self):
         super(CryptoAgent, self).__init__()
